@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Вопрос — pdd-assistant</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Экран 2. Вопрос (/). Сценарий 2 в spec/product/scenarios.md -->
+  <header class="header">
+    <div class="header__inner">
+      <a class="logo" href="ask.html"><span class="logo__sign"></span>pdd-assistant</a>
+      <div class="user">
+        <span>ivanov</span>
+        <a class="btn btn--light" href="index.html">Выйти</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="page">
+    <h1>Задайте вопрос по ПДД</h1>
+
+    <form class="card" action="answer.html">
+      <div class="field">
+        <label for="q">Ваш вопрос</label>
+        <textarea id="q" name="q" required placeholder="Например: разрешён ли обгон на мосту и какой за это штраф?"></textarea>
+      </div>
+      <button type="submit" class="btn">Спросить</button>
+      <p class="hint">
+        Можно спрашивать о правилах дорожного движения и штрафах по главе 12 КоАП РФ.
+        Ответ составляет языковая модель по найденным пунктам, поэтому пункты стоит перечитать: они будут под ответом.
+      </p>
+    </form>
+  </main>
+
+  <p class="proto-note">Прототип: данные-заглушки. Любой вопрос открывает один и тот же пример ответа.</p>
+</body>
+</html>

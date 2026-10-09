@@ -1,0 +1,232 @@
+/* Общие стили прототипа. К КТ2 переносятся в шаблоны html/template без изменений. */
+
+:root {
+  --bg: #f4f5f7;
+  --card: #ffffff;
+  --text: #1d2330;
+  --muted: #667085;
+  --border: #dde1e7;
+  --accent: #1f5fbf;
+  --accent-dark: #174a96;
+  --ok-bg: #e7f6ec;
+  --ok-text: #1b6b38;
+  --err-bg: #fdecec;
+  --err-text: #a12828;
+  --radius: 10px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+}
+
+a { color: var(--accent); }
+
+/* Шапка */
+
+.header {
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+}
+
+.header__inner {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.logo {
+  font-weight: 700;
+  color: var(--text);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.logo__sign {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 4px solid #d62828;
+  background: #fff;
+}
+
+.nav { display: flex; gap: 16px; }
+.nav a { text-decoration: none; color: var(--muted); }
+.nav a.active { color: var(--text); font-weight: 600; }
+
+.user {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+}
+
+/* Разметка страницы */
+
+.page {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+}
+
+h1 { font-size: 24px; margin: 0 0 16px; }
+h2 { font-size: 18px; margin: 0 0 12px; }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.muted { color: var(--muted); }
+.hint { color: var(--muted); font-size: 14px; margin: 12px 0 0; }
+
+/* Формы */
+
+label { display: block; font-weight: 600; margin-bottom: 6px; }
+
+input[type="text"],
+input[type="password"],
+textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font: inherit;
+  background: #fff;
+}
+
+textarea { resize: vertical; min-height: 80px; }
+
+input:focus, textarea:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+  border-color: var(--accent);
+}
+
+.field { margin-bottom: 14px; }
+
+.row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+.row .field { flex: 1 1 200px; margin-bottom: 0; }
+
+.btn {
+  display: inline-block;
+  padding: 10px 18px;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.btn:hover { background: var(--accent-dark); }
+
+.btn--light {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+  font-weight: 500;
+}
+
+.btn--light:hover { background: var(--bg); }
+
+.msg {
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 14px;
+}
+
+.msg--ok { background: var(--ok-bg); color: var(--ok-text); }
+.msg--err { background: var(--err-bg); color: var(--err-text); }
+
+/* Вход */
+
+.login {
+  max-width: 380px;
+  margin: 10vh auto 0;
+  padding: 0 16px;
+}
+
+.login .logo { justify-content: center; font-size: 22px; margin-bottom: 4px; }
+.login .btn { width: 100%; }
+
+/* Ответ */
+
+.question { font-size: 18px; font-weight: 600; margin: 0; }
+
+.answer p { margin: 0 0 10px; }
+.answer p:last-child { margin-bottom: 0; }
+.answer .ref { color: var(--accent); white-space: nowrap; }
+
+.docs { list-style: none; margin: 0; padding: 0; counter-reset: doc; }
+
+.docs li {
+  counter-increment: doc;
+  border-top: 1px solid var(--border);
+}
+
+.docs li:first-child { border-top: none; }
+
+.docs summary {
+  cursor: pointer;
+  padding: 10px 0;
+  font-weight: 600;
+}
+
+.docs summary::before {
+  content: counter(doc) ". ";
+  color: var(--muted);
+}
+
+.docs .doc-text {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  background: var(--bg);
+  border-radius: 8px;
+  font-size: 15px;
+  white-space: pre-line;
+}
+
+/* Таблицы */
+
+.table-wrap { overflow-x: auto; }
+
+table { width: 100%; border-collapse: collapse; }
+
+th, td {
+  text-align: left;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+th { color: var(--muted); font-weight: 600; font-size: 14px; }
+tr:last-child td { border-bottom: none; }
+td.nowrap { white-space: nowrap; }
+
+/* Подвал прототипа */
+
+.proto-note {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 0 16px 24px;
+  color: var(--muted);
+  font-size: 13px;
+}

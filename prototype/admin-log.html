@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Журнал запросов — pdd-assistant</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Экран 5. Журнал запросов (/admin/log). Сценарий 4 в spec/product/scenarios.md -->
+  <header class="header">
+    <div class="header__inner">
+      <a class="logo" href="admin-users.html"><span class="logo__sign"></span>pdd-assistant</a>
+      <nav class="nav">
+        <a href="admin-users.html">Ученики</a>
+        <a class="active" href="admin-log.html">Журнал запросов</a>
+      </nav>
+      <div class="user">
+        <span>admin</span>
+        <a class="btn btn--light" href="index.html">Выйти</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="page">
+    <h1>Журнал запросов</h1>
+
+    <section class="card">
+      <!-- Если вопросов ещё нет, вместо таблицы:
+      <p class="muted">Ученики пока не задавали вопросов.</p> -->
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Когда</th><th>Ученик</th><th>Вопрос</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="nowrap">09.10.2026 10:21</td><td>petrova</td><td>Разрешён ли обгон на мосту и какой за это штраф?</td></tr>
+            <tr><td class="nowrap">09.10.2026 10:05</td><td>sidorov</td><td>Где нельзя парковаться?</td></tr>
+            <tr><td class="nowrap">08.10.2026 21:47</td><td>petrova</td><td>Кто проезжает первым на нерегулируемом перекрёстке равнозначных дорог?</td></tr>
+            <tr><td class="nowrap">08.10.2026 20:13</td><td>smirnov</td><td>Какой штраф за превышение скорости на 30 км/ч?</td></tr>
+            <tr><td class="nowrap">08.10.2026 19:58</td><td>kuznetsova</td><td>Можно ли разговаривать по телефону за рулём?</td></tr>
+            <tr><td class="nowrap">08.10.2026 19:30</td><td>smirnov</td><td>Когда нужно включать аварийку?</td></tr>
+            <tr><td class="nowrap">07.10.2026 17:02</td><td>kuznetsova</td><td>Что будет, если не пропустить пешехода на переходе?</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <p class="proto-note">Прототип: данные-заглушки. Ответы модели в журнале не хранятся, только вопросы.</p>
+</body>
+</html>
