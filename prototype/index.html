@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Вход — pdd-assistant</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Экран 1. Вход (/login). Сценарий 1 в spec/product/scenarios.md -->
+  <main class="login">
+    <div class="logo"><span class="logo__sign"></span>pdd-assistant</div>
+    <p class="muted" style="text-align:center;margin:0 0 20px">Помощник по ПДД для учеников автошколы</p>
+
+    <form class="card" id="login-form">
+      <!-- Сообщение при неверном входе (в прототипе не показывается):
+      <div class="msg msg--err">Неверный логин или пароль</div> -->
+      <div class="field">
+        <label for="login">Логин</label>
+        <input type="text" id="login" name="login" required autocomplete="username">
+      </div>
+      <div class="field">
+        <label for="password">Пароль</label>
+        <input type="password" id="password" name="password" required autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn">Войти</button>
+      <p class="hint">Аккаунт выдаёт автошкола. Если у вас его нет, обратитесь к администратору.</p>
+    </form>
+  </main>
+
+  <p class="proto-note" style="text-align:center">
+    Прототип: логин <b>admin</b> открывает админку, любой другой — экран ученика. Пароль любой.<br>
+    Сразу перейти: <a href="ask.html">ученик</a> · <a href="admin-users.html">админ</a>
+  </p>
+
+  <script>
+    // Только для прототипа: на сервере вход проверяет auth, а страницу выбирает роль пользователя.
+    document.getElementById('login-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var login = document.getElementById('login').value.trim();
+      location.href = login === 'admin' ? 'admin-users.html' : 'ask.html';
+    });
+  </script>
+</body>
+</html>

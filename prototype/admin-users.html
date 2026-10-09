@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ученики — pdd-assistant</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Экран 4. Ученики (/admin/users). Сценарий 3 в spec/product/scenarios.md -->
+  <header class="header">
+    <div class="header__inner">
+      <a class="logo" href="admin-users.html"><span class="logo__sign"></span>pdd-assistant</a>
+      <nav class="nav">
+        <a class="active" href="admin-users.html">Ученики</a>
+        <a href="admin-log.html">Журнал запросов</a>
+      </nav>
+      <div class="user">
+        <span>admin</span>
+        <a class="btn btn--light" href="index.html">Выйти</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="page">
+    <h1>Ученики</h1>
+
+    <form class="card" id="create-form">
+      <h2>Новый ученик</h2>
+      <div id="msg"></div>
+      <!-- Если логин занят:
+      <div class="msg msg--err">Логин ivanov уже занят</div> -->
+      <div class="row">
+        <div class="field">
+          <label for="login">Логин</label>
+          <input type="text" id="login" name="login" required autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="password">Пароль</label>
+          <input type="text" id="password" name="password" required autocomplete="off">
+        </div>
+        <button type="submit" class="btn">Создать</button>
+      </div>
+      <p class="hint">Логин и пароль передайте ученику сами: приложение их никуда не отправляет.</p>
+    </form>
+
+    <section class="card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Логин</th><th>Создан</th></tr>
+          </thead>
+          <tbody id="users">
+            <tr><td>petrova</td><td class="nowrap">08.10.2026 18:42</td></tr>
+            <tr><td>sidorov</td><td class="nowrap">08.10.2026 18:40</td></tr>
+            <tr><td>kuznetsova</td><td class="nowrap">07.10.2026 12:15</td></tr>
+            <tr><td>smirnov</td><td class="nowrap">07.10.2026 12:14</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <p class="proto-note">Прототип: данные-заглушки. Созданный ученик добавляется в таблицу, но после перезагрузки страницы пропадает.</p>
+
+  <script>
+    // Только для прототипа: на сервере ученика создаёт POST /admin/users и запись в таблицу users.
+    document.getElementById('create-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var login = document.getElementById('login').value.trim();
+      var msg = document.getElementById('msg');
+      var taken = Array.prototype.some.call(document.querySelectorAll('#users td:first-child'), function (td) {
+        return td.textContent === login;
+      });
+      msg.className = 'msg ' + (taken ? 'msg--err' : 'msg--ok');
+      msg.textContent = taken ? 'Логин ' + login + ' уже занят' : 'Ученик ' + login + ' создан';
+      if (taken) return;
+
+      var d = new Date();
+      var pad = function (n) { return String(n).padStart(2, '0'); };
+      var row = document.createElement('tr');
+      var tdLogin = document.createElement('td');
+      tdLogin.textContent = login;
+      var tdDate = document.createElement('td');
+      tdDate.className = 'nowrap';
+      tdDate.textContent = pad(d.getDate()) + '.' + pad(d.getMonth() + 1) + '.' + d.getFullYear() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+      row.append(tdLogin, tdDate);
+      document.getElementById('users').prepend(row);
+      e.target.reset();
+    });
+  </script>
+</body>
+</html>
