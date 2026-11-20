@@ -1,14 +1,19 @@
 {{define "csrf"}}<input type="hidden" name="csrf_token" value="{{.CSRFToken}}">{{end}}
+{{define "arrow"}}<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M5 12h14m-6-6 6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>{{end}}
+{{define "book"}}<svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 6c-3-2-6-2-9-1v15c3-1 6-1 9 1m0-15c3-2 6-2 9-1v15c-3-1-6-1-9 1m0-15v15" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>{{end}}
+{{define "spark"}}<svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="m12 3 2.2 6.8L21 12l-6.8 2.2L12 21l-2.2-6.8L3 12l6.8-2.2L12 3Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>{{end}}
+{{define "person"}}<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.5" stroke="currentColor" stroke-width="1.7"/><path d="M5 21v-2a7 7 0 0 1 14 0v2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>{{end}}
 {{define "question-form"}}
-<form class="card" action="/ask" method="post" data-pending="Ищем документы и готовим ответ…">
+<form class="card question-card" action="/ask" method="post" data-pending="Ищем документы и готовим ответ…">
   {{template "csrf" .}}
-  <div class="field">
-    <label for="question">Ваш вопрос</label>
-    <textarea id="question" name="question" required maxlength="2000" rows="3" aria-describedby="question-help" placeholder="Сформулируйте вопрос по выбранным документам">{{.Question}}</textarea>
+  <div class="form-heading"><span class="icon-box">{{template "spark" .}}</span><div><h2>С чего начнём?</h2><p>Опишите ситуацию своими словами</p></div><span class="form-tag">ПДД + КоАП</span></div>
+  <div class="field question-field">
+    <label class="sr-only" for="question">Ваш вопрос</label>
+    <textarea id="question" name="question" required maxlength="2000" rows="3" data-counted aria-describedby="question-help" placeholder="Например, в каких случаях запрещён обгон?">{{.Question}}</textarea>
   </div>
-  <button class="btn" type="submit">Спросить</button>
+  <div class="form-bottom"><span class="input-counter" data-counter-for="question">0 / 2000</span><button class="btn" type="submit">Спросить <span class="btn-icon">{{template "arrow" .}}</span></button></div>
   <span class="pending" role="status" aria-live="polite"></span>
-  <p class="hint" id="question-help">До 2000 символов. Учебная база содержит выборку из ПДД и главы 12 КоАП. Ответ составляет языковая модель: перечитайте найденные пункты.</p>
+  <p class="hint" id="question-help">До 2000 символов. Ответ — по учебной выборке из ПДД и главы 12 КоАП. Перечитайте найденные пункты.</p>
 </form>
 {{end}}
 {{define "messages"}}
@@ -21,40 +26,35 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f6f0">
   <title>{{template "title" .}} — pdd-assistant</title>
   <link rel="stylesheet" href="/static/style.css">
   <script src="/static/forms.js" defer></script>
 </head>
-<body>
+<body class="{{template "page-class" .}}">
   <a class="skip-link" href="#main">К содержимому</a>
-  {{if .Preview}}
-  <aside class="preview" aria-label="Просмотр интерфейса">
-    <div class="preview__inner">
-      <strong>Просмотр интерфейса КТ2</strong>
-      <p>Демонстрационные данные. Авторизация, сохранение, поиск и LLM ещё не подключены. Формы возвращают сообщение об этом.</p>
-      <nav class="preview__links" aria-label="Экраны и состояния">
-        <a href="/login">Вход</a><a href="/login?state=error">Ошибка входа</a>
-        <a href="/">Вопрос</a><a href="/?state=error">Ошибка вопроса</a>
-        <a href="/ask">Ответ</a><a href="/ask?state=empty">Пустой поиск</a>
-        <a href="/ask?state=refused">Отказ модели</a><a href="/ask?state=error">Сбой LLM</a>
-        <a href="/admin/users">Ученики</a><a href="/admin/users?state=empty">Нет учеников</a>
-        <a href="/admin/users?state=error">Логин занят</a><a href="/admin/users?state=created">Ученик создан</a>
-        <a href="/admin/log">Журнал</a><a href="/admin/log?state=empty">Пустой журнал</a><a href="/forbidden">Нет доступа</a>
-      </nav>
-    </div>
-  </aside>
-  {{end}}
   <header class="header">
     <div class="header__inner">
-      <a class="logo" href="{{if .CurrentUser}}{{if eq .CurrentUser.Role "admin"}}/admin/users{{else}}/{{end}}{{else}}/login{{end}}"><span class="logo__sign" aria-hidden="true"></span>pdd-assistant</a>
+      <a class="logo" href="{{if .CurrentUser}}{{if eq .CurrentUser.Role "admin"}}/admin/users{{else}}/{{end}}{{else}}/login{{end}}"><span class="logo__sign" aria-hidden="true"><svg width="25" height="25" viewBox="0 0 24 24" fill="none"><path d="m5 20 4-16m6 0 4 16M12 5v3m0 3v3m0 3v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><span class="logo__name">пдд<span class="logo__accent">.</span><span class="logo__subtitle">assistant</span></span></a>
       {{if .CurrentUser}}
-        {{if eq .CurrentUser.Role "admin"}}<nav class="nav" aria-label="Администрирование"><a href="/admin/users">Ученики</a><a href="/admin/log">Журнал запросов</a></nav>{{end}}
-        <div class="user"><span>{{.CurrentUser.Login}}</span><form method="post" action="/logout">{{template "csrf" .}}<button class="btn btn--light" type="submit">Выйти</button></form></div>
-      {{end}}
+        {{if eq .CurrentUser.Role "admin"}}<nav class="nav" aria-label="Администрирование"><a href="/admin/users">Ученики</a><a href="/admin/log">Журнал запросов</a></nav>{{else}}<span class="header-note">Ясность в правилах. Уверенность на дороге.</span>{{end}}
+        <div class="user"><span class="user-avatar">{{template "person" .}}</span><span class="user-info"><span class="user-name">{{.CurrentUser.Login}}</span><span class="user-role">{{if eq .CurrentUser.Role "admin"}}Администратор{{else}}Ученик автошколы{{end}}</span></span><form method="post" action="/logout">{{template "csrf" .}}<button class="btn btn--light" type="submit">Выйти</button></form></div>
+      {{else}}<span class="header-note header-note--login">Ваш помощник в изучении правил</span>{{end}}
     </div>
   </header>
   <main id="main" class="page" tabindex="-1">{{template "content" .}}</main>
-  <footer class="footer">Учебный помощник по ПДД · НИРС, ИУ5-52Б</footer>
+  <footer class="footer"><span><span class="footer-dot"></span>Учебный помощник по ПДД</span><span>НИРС · ИУ5-52Б <span class="footer-separator">/</span> Сделано для понимания</span></footer>
+  {{if .Preview}}
+  <aside class="preview" aria-label="Просмотр интерфейса"><details class="preview-tools"><summary><span class="preview-dot"></span>Локальный просмотр <span class="preview-label">Демоданные</span></summary><div class="preview__inner">
+    <strong>Просмотр интерфейса КТ2</strong><p>Демонстрационные данные. Авторизация, сохранение, поиск и LLM ещё не подключены. Формы возвращают сообщение об этом.</p>
+    <nav class="preview__links" aria-label="Экраны и состояния">
+      <a href="/login">Вход</a><a href="/login?state=error">Ошибка входа</a><a href="/">Вопрос</a><a href="/?state=error">Ошибка вопроса</a>
+      <a href="/ask">Ответ</a><a href="/ask?state=empty">Пустой поиск</a><a href="/ask?state=refused">Отказ модели</a><a href="/ask?state=error">Сбой LLM</a>
+      <a href="/admin/users">Ученики</a><a href="/admin/users?state=empty">Нет учеников</a><a href="/admin/users?state=error">Логин занят</a><a href="/admin/users?state=created">Ученик создан</a>
+      <a href="/admin/log">Журнал</a><a href="/admin/log?state=empty">Пустой журнал</a><a href="/forbidden">Нет доступа</a>
+    </nav>
+  </div></details></aside>
+  {{end}}
 </body>
 </html>
 {{end}}

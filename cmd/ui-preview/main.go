@@ -4,6 +4,7 @@ package main
 import (
 	"flag"
 	"log"
+	"net"
 	"net/http"
 	"time"
 
@@ -11,15 +12,20 @@ import (
 )
 
 func main() {
-	addr := flag.String("addr", "127.0.0.1:8080", "адрес локального просмотра")
+	addr := flag.String("addr", "127.0.0.1:0", "адрес локального просмотра (порт 0 — выбрать свободный)")
 	flag.Parse()
 	r, err := ui.New()
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Printf("Просмотр UI: http://%s — демонстрационные данные, без RAG и сохранения", *addr)
-	s := &http.Server{Addr: *addr, Handler: previewHandler(r), ReadHeaderTimeout: 5 * time.Second}
-	log.Fatal(s.ListenAndServe())
+	listener, err := net.Listen("tcp", *addr)
+	if err != nil {
+		log.Fatalf("Не удалось открыть адрес %s: %v", *addr, err)
+	}
+	defer listener.Close()
+	log.Printf("Просмотр UI: http://%s — демонстрационные данные, без RAG и сохранения", listener.Addr().String())
+	s := &http.Server{Handler: previewHandler(r), ReadHeaderTimeout: 5 * time.Second}
+	log.Fatal(s.Serve(listener))
 }
 
 func previewHandler(r *ui.Renderer) http.Handler {

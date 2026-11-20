@@ -1,15 +1,16 @@
 {{define "title"}}Вход{{end}}
+{{define "page-class"}}view-login{{end}}
 {{define "content"}}
-<div class="login">
-  <h1>Вход в помощник по ПДД</h1>
-  <p class="muted">Для учеников и сотрудников автошколы</p>
-  {{template "messages" .}}
-  <form class="card" action="/login" method="post" data-pending="Проверяем данные…">
-    {{template "csrf" .}}
-    <div class="field"><label for="login">Логин</label><input id="login" name="login" type="text" required autocomplete="username" value="{{.Login}}"></div>
-    <div class="field"><label for="password">Пароль</label><input id="password" name="password" type="password" required autocomplete="current-password"></div>
-    <button class="btn" type="submit">Войти</button><span class="pending" role="status" aria-live="polite"></span>
-    <p class="hint">Аккаунт выдаёт автошкола. Если у вас его нет, обратитесь к администратору.</p>
-  </form>
+<div class="login-layout">
+  <section class="login-story"><span class="eyebrow"><span class="status-dot"></span>ЗНАТЬ ПРАВИЛА. ПОНИМАТЬ ДОРОГУ.</span><h2>Уверенность<br>начинается<br>с понимания<span class="text-accent">.</span></h2><p class="hero-lead">Разбирайте дорожные ситуации, находите нужные пункты и учитесь принимать решения.</p><div class="login-art"><img src="/static/road-scene.svg" alt="" width="720" height="500"></div><div class="login-story-bottom"><span>{{template "book" .}} Ответы с источниками</span><span>{{template "spark" .}} Простые объяснения</span></div></section>
+  <section class="login-panel"><div class="login-panel-top"><span class="section-label">ЛИЧНЫЙ КАБИНЕТ</span><span class="round-symbol">{{template "arrow" .}}</span></div><h1>Вход в помощник</h1><p class="muted">Рады видеть вас. Продолжим разбираться в правилах?</p>{{template "messages" .}}
+    <form action="/login" method="post" data-pending="Проверяем данные…">
+      {{template "csrf" .}}
+      <div class="field"><label for="login">Логин</label><input id="login" name="login" type="text" required autocomplete="username" value="{{.Login}}" placeholder="Введите ваш логин"></div>
+      <div class="field"><label for="password">Пароль</label><input id="password" name="password" type="password" required autocomplete="current-password" placeholder="Введите пароль"></div>
+      <button class="btn btn--wide" type="submit">Войти <span class="btn-icon">{{template "arrow" .}}</span></button><span class="pending" role="status" aria-live="polite"></span>
+      <div class="account-note">{{template "person" .}}<p>Аккаунт выдаёт автошкола. Если у вас его нет, обратитесь к администратору.</p></div>
+    </form>
+  </section>
 </div>
 {{end}}

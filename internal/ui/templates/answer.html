@@ -1,36 +1,17 @@
 {{define "title"}}Ответ{{end}}
+{{define "page-class"}}view-answer{{end}}
 {{define "content"}}
-<h1>Ответ на ваш вопрос</h1>
-<section class="card"><h2 class="muted">Вопрос</h2><p class="question">{{.Question}}</p></section>
-<section class="card answer" aria-labelledby="answer-title">
-  <h2 id="answer-title">{{if eq .AnswerState "insufficient_context"}}Недостаточно сведений{{else if eq .AnswerState "llm_error"}}Ответ недоступен{{else}}Ответ{{end}}</h2>
-  {{if eq .AnswerState "answered"}}
-    <p class="answer-text">{{.Answer}}</p>
-  {{else if eq .AnswerState "no_results"}}
-    <p class="msg msg--info" role="status">По вашему вопросу ничего не нашлось в учебной базе ПДД и главы 12 КоАП. Попробуйте сформулировать иначе.</p>
-  {{else if eq .AnswerState "insufficient_context"}}
-    <p class="msg msg--info" role="status">В документах нет этой информации.</p>
-    {{if .Answer}}<p class="answer-text">{{.Answer}}</p>{{end}}
-    <p class="hint">Найденные совпадения не дают достаточно сведений для обоснованного ответа.</p>
-  {{else if eq .AnswerState "llm_error"}}
-    <p class="msg msg--err" role="alert">Не удалось получить ответ, попробуйте позже.</p>
-    <p class="hint">Вы можете самостоятельно прочитать найденные документы ниже.</p>
-  {{end}}
-</section>
-{{if .Sources}}
-<section class="card" aria-labelledby="sources-title">
-  <h2 id="sources-title">Найденные пункты</h2>
-  <p class="hint">Нажмите на пункт, чтобы прочитать текст. Порядок документов соответствует выдаче поиска.</p>
-  <ol class="docs">
-  {{range .Sources}}<li><details><summary>{{.Ref}} <span class="source-id">{{.ID}}</span></summary><p class="doc-text">{{.Text}}</p></details></li>{{end}}
-  </ol>
-</section>
-{{end}}
-<section aria-labelledby="new-question"><h2 id="new-question">Новый вопрос</h2>
-<form class="card" action="/ask" method="post" data-pending="Ищем документы и готовим ответ…">
-  {{template "csrf" .}}
-  <div class="field"><label for="question">Ваш вопрос</label><textarea id="question" name="question" required maxlength="2000" rows="2" aria-describedby="new-question-help" placeholder="Задайте следующий вопрос"></textarea></div>
-  <button class="btn" type="submit">Спросить</button><span class="pending" role="status" aria-live="polite"></span>
-  <p id="new-question-help" class="hint">Каждый вопрос рассматривается отдельно, история диалога не сохраняется.</p>
-</form></section>
+<div class="page-heading"><div><span class="eyebrow">РАЗБОР ДОРОЖНОЙ СИТУАЦИИ</span><h1>От вопроса — к пониманию<span class="text-accent">.</span></h1></div><a class="back-link" href="/">Новый вопрос {{template "arrow" .}}</a></div>
+<div class="answer-layout"><div class="answer-main">
+  <section class="question-summary"><span class="section-label">ВАШ ВОПРОС</span><p class="question">{{.Question}}</p></section>
+  <section class="card answer" aria-labelledby="answer-title"><div class="answer-heading"><span class="icon-box">{{template "spark" .}}</span><h2 id="answer-title">{{if eq .AnswerState "insufficient_context"}}Недостаточно сведений{{else if eq .AnswerState "llm_error"}}Ответ недоступен{{else}}Ответ{{end}}</h2>{{if eq .AnswerState "answered"}}<span class="status-badge">По источникам</span>{{end}}</div>
+    {{if eq .AnswerState "answered"}}<p class="answer-text">{{.Answer}}</p><div class="answer-footnote">{{template "book" .}} Сверьте ответ с найденными пунктами</div>
+    {{else if eq .AnswerState "no_results"}}<p class="msg msg--info" role="status">По вашему вопросу ничего не нашлось в учебной базе ПДД и главы 12 КоАП. Попробуйте сформулировать иначе.</p>
+    {{else if eq .AnswerState "insufficient_context"}}<p class="msg msg--info" role="status">В документах нет этой информации.</p>{{if .Answer}}<p class="answer-text">{{.Answer}}</p>{{end}}<p class="hint">Найденные совпадения не дают достаточно сведений для обоснованного ответа.</p>
+    {{else if eq .AnswerState "llm_error"}}<p class="msg msg--err" role="alert">Не удалось получить ответ, попробуйте позже.</p><p class="hint">Вы можете самостоятельно прочитать найденные документы ниже.</p>{{end}}
+  </section>
+</div>
+{{if .Sources}}<aside class="card sources-card" aria-labelledby="sources-title"><div class="sources-heading"><span class="icon-box icon-box--light">{{template "book" .}}</span><h2 id="sources-title">Найденные пункты</h2><span class="count-badge">{{len .Sources}}</span></div><p class="hint">Основа ответа. Раскройте пункт, чтобы прочитать полный текст.</p><ol class="docs">{{range .Sources}}<li><details><summary><span class="source-ref">{{.Ref}}</span><span class="source-id">{{.ID}}</span></summary><p class="doc-text">{{.Text}}</p></details></li>{{end}}</ol><div class="sources-note">Документы в порядке выдачи поиска</div></aside>{{end}}
+</div>
+<section class="next-question" aria-labelledby="new-question"><div class="next-question-heading"><h2 id="new-question">Разберём ещё одну ситуацию?</h2><p class="muted">Каждый вопрос рассматривается отдельно.</p></div><form class="card question-card question-card--compact" action="/ask" method="post" data-pending="Ищем документы и готовим ответ…">{{template "csrf" .}}<div class="field question-field"><label class="sr-only" for="question">Ваш вопрос</label><textarea id="question" name="question" required maxlength="2000" rows="2" data-counted aria-describedby="new-question-help" placeholder="Задайте следующий вопрос"></textarea></div><div class="form-bottom"><span class="input-counter" data-counter-for="question">0 / 2000</span><button class="btn" type="submit">Спросить <span class="btn-icon">{{template "arrow" .}}</span></button></div><span class="pending" role="status" aria-live="polite"></span><p id="new-question-help" class="hint">История диалога не сохраняется. Ответ составляет языковая модель по найденным документам.</p></form></section>
 {{end}}

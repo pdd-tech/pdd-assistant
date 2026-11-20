@@ -1,7 +1,14 @@
 {{define "title"}}Вопрос{{end}}
+{{define "page-class"}}view-ask{{end}}
 {{define "content"}}
-<h1>Задайте вопрос по ПДД</h1>
-<p class="muted">Ответ по документам учебной базы со ссылками на найденные пункты.</p>
-{{template "messages" .}}
-{{template "question-form" .}}
+<section class="hero">
+  <div class="hero-copy"><span class="eyebrow"><span class="status-dot"></span>ВАШ ПОМОЩНИК В ИЗУЧЕНИИ ПДД</span><h1>Разберёмся<br>по правилам<span class="text-accent">.</span></h1><p class="hero-lead">Сложная ситуация на дороге? Задайте вопрос —<br class="desktop-break"> и получите понятный ответ с опорой на документы.</p></div>
+  <div class="hero-art"><img src="/static/road-scene.svg" alt="" width="720" height="500"><div class="art-caption"><span class="caption-check">✓</span><span>Меньше сомнений.<br><strong>Больше понимания.</strong></span></div></div>
+</section>
+<div class="ask-workspace">
+  <section class="ask-main" aria-label="Вопрос помощнику">{{template "messages" .}}{{template "question-form" .}}
+    <div class="examples"><span class="examples-label">Можно начать с этого</span><div class="example-list"><button type="button" class="example" data-question="В каких случаях запрещён обгон?">Обгон и манёвры {{template "arrow" .}}</button><button type="button" class="example" data-question="Чем остановка отличается от стоянки?">Остановка и стоянка {{template "arrow" .}}</button><button type="button" class="example" data-question="Какие обязанности есть у водителя перед пешеходным переходом?">Пешеходные переходы {{template "arrow" .}}</button></div></div>
+  </section>
+  <aside class="how-card"><div class="section-label">КАК ЭТО РАБОТАЕТ</div><ol class="steps"><li><span class="step-number">01</span><div><h3>Вы задаёте вопрос</h3><p>Обычными словами, как другу.</p></div></li><li><span class="step-number">02</span><div><h3>Находим нужные пункты</h3><p>В учебной базе ПДД и КоАП.</p></div></li><li><span class="step-number">03</span><div><h3>Объясняем с источниками</h3><p>Чтобы вы могли проверить ответ.</p></div></li></ol><div class="how-note">{{template "book" .}}<p>Если сведений недостаточно,<br>помощник прямо об этом скажет.</p></div></aside>
+</div>
 {{end}}
