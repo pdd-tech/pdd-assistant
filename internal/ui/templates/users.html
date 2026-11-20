@@ -1,0 +1,23 @@
+{{define "title"}}Ученики{{end}}
+{{define "content"}}
+<h1>Ученики</h1>
+{{template "messages" .}}
+<form class="card" action="/admin/users" method="post" data-pending="Создаём ученика…">
+  <h2>Новый ученик</h2>
+  {{template "csrf" .}}
+  <div class="row">
+    <div class="field"><label for="login">Логин ученика</label><input type="text" id="login" name="login" required autocomplete="off" value="{{.Login}}"></div>
+    <div class="field"><label for="password">Пароль ученика</label><input type="password" id="password" name="password" required autocomplete="new-password"></div>
+    <button class="btn" type="submit">Создать</button>
+  </div>
+  <span class="pending" role="status" aria-live="polite"></span>
+  <p class="hint">Логин и пароль передайте ученику сами: приложение их никуда не отправляет.</p>
+</form>
+<section class="card" aria-labelledby="users-title">
+  <h2 id="users-title">Список учеников</h2>
+  {{if .Users}}<div class="table-wrap" role="region" aria-label="Список учеников" tabindex="0"><table><thead><tr><th scope="col">Логин</th><th scope="col">Создан</th></tr></thead><tbody>
+    {{range .Users}}<tr><td>{{.Login}}</td><td class="nowrap">{{.CreatedAt}}</td></tr>{{end}}
+  </tbody></table></div>
+  {{else}}<p class="muted">Учеников пока нет. Создайте первый аккаунт с помощью формы выше.</p>{{end}}
+</section>
+{{end}}

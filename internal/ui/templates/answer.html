@@ -1,0 +1,36 @@
+{{define "title"}}Ответ{{end}}
+{{define "content"}}
+<h1>Ответ на ваш вопрос</h1>
+<section class="card"><h2 class="muted">Вопрос</h2><p class="question">{{.Question}}</p></section>
+<section class="card answer" aria-labelledby="answer-title">
+  <h2 id="answer-title">{{if eq .AnswerState "insufficient_context"}}Недостаточно сведений{{else if eq .AnswerState "llm_error"}}Ответ недоступен{{else}}Ответ{{end}}</h2>
+  {{if eq .AnswerState "answered"}}
+    <p class="answer-text">{{.Answer}}</p>
+  {{else if eq .AnswerState "no_results"}}
+    <p class="msg msg--info" role="status">По вашему вопросу ничего не нашлось в учебной базе ПДД и главы 12 КоАП. Попробуйте сформулировать иначе.</p>
+  {{else if eq .AnswerState "insufficient_context"}}
+    <p class="msg msg--info" role="status">В документах нет этой информации.</p>
+    {{if .Answer}}<p class="answer-text">{{.Answer}}</p>{{end}}
+    <p class="hint">Найденные совпадения не дают достаточно сведений для обоснованного ответа.</p>
+  {{else if eq .AnswerState "llm_error"}}
+    <p class="msg msg--err" role="alert">Не удалось получить ответ, попробуйте позже.</p>
+    <p class="hint">Вы можете самостоятельно прочитать найденные документы ниже.</p>
+  {{end}}
+</section>
+{{if .Sources}}
+<section class="card" aria-labelledby="sources-title">
+  <h2 id="sources-title">Найденные пункты</h2>
+  <p class="hint">Нажмите на пункт, чтобы прочитать текст. Порядок документов соответствует выдаче поиска.</p>
+  <ol class="docs">
+  {{range .Sources}}<li><details><summary>{{.Ref}} <span class="source-id">{{.ID}}</span></summary><p class="doc-text">{{.Text}}</p></details></li>{{end}}
+  </ol>
+</section>
+{{end}}
+<section aria-labelledby="new-question"><h2 id="new-question">Новый вопрос</h2>
+<form class="card" action="/ask" method="post" data-pending="Ищем документы и готовим ответ…">
+  {{template "csrf" .}}
+  <div class="field"><label for="question">Ваш вопрос</label><textarea id="question" name="question" required maxlength="2000" rows="2" aria-describedby="new-question-help" placeholder="Задайте следующий вопрос"></textarea></div>
+  <button class="btn" type="submit">Спросить</button><span class="pending" role="status" aria-live="polite"></span>
+  <p id="new-question-help" class="hint">Каждый вопрос рассматривается отдельно, история диалога не сохраняется.</p>
+</form></section>
+{{end}}
