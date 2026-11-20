@@ -1,17 +1,23 @@
-// Command bench запускает retrieval и считает метрики benchmark КТ2 (см. spec/tech/rag.md).
+// Command bench запускает поиск, RAG и расчёт метрик КТ2 (см. spec/tech/rag.md).
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
+	"github.com/pdd-tech/pdd-assistant/internal/config"
+	"github.com/pdd-tech/pdd-assistant/internal/llm"
+	"github.com/pdd-tech/pdd-assistant/internal/rag"
 	"github.com/pdd-tech/pdd-assistant/internal/search"
 )
 
@@ -27,6 +33,7 @@ type Query struct {
 type Result struct {
 	ID        string       `json:"id"`
 	Hits      []search.Hit `json:"hits"`
+	Sources   []search.Hit `json:"sources,omitempty"`
 	ElapsedMS float64      `json:"elapsed_ms"`
 	Answer    string       `json:"answer,omitempty"`
 	Refused   bool         `json:"refused,omitempty"`
@@ -34,18 +41,20 @@ type Result struct {
 }
 
 type Run struct {
-	Mode          string   `json:"mode"`
-	RunID         string   `json:"run_id"`
-	StartedAt     string   `json:"started_at"`
-	CorpusSHA256  string   `json:"corpus_sha256"`
-	QueriesSHA256 string   `json:"queries_sha256"`
-	ConfigSHA256  string   `json:"config_sha256"`
-	K             int      `json:"k"`
-	K1            float64  `json:"k1"`
-	B             float64  `json:"b"`
-	MRRDepth      int      `json:"mrr_depth"`
-	Model         string   `json:"model,omitempty"`
-	Results       []Result `json:"results"`
+	Mode          string        `json:"mode"`
+	Status        string        `json:"status,omitempty"`
+	RunID         string        `json:"run_id"`
+	StartedAt     string        `json:"started_at"`
+	CorpusSHA256  string        `json:"corpus_sha256"`
+	QueriesSHA256 string        `json:"queries_sha256"`
+	ConfigSHA256  string        `json:"config_sha256"`
+	K             int           `json:"k"`
+	K1            float64       `json:"k1"`
+	B             float64       `json:"b"`
+	MRRDepth      int           `json:"mrr_depth"`
+	Model         string        `json:"model,omitempty"`
+	LLM           *llm.Settings `json:"llm,omitempty"`
+	Results       []Result      `json:"results"`
 }
 
 type Grade struct {
@@ -71,32 +80,38 @@ func run(args []string) error {
 	fs := flag.NewFlagSet("bench", flag.ContinueOnError)
 	mode := fs.String("mode", "", "retrieval | rag | score")
 	out := fs.String("out", "", "файл результата (по умолчанию stdout)")
-	corpusDir := fs.String("corpus", "corpus", "папка корпуса")
+	corpusDir := fs.String("corpus", config.CorpusDir(), "папка корпуса")
 	queriesPath := fs.String("queries", "benchmark/queries.json", "файл вопросов")
 	runPath := fs.String("run", "", "score: файл прогона")
 	gradesPath := fs.String("grades", "", "score: файл оценок (необязателен)")
-	k := fs.Int("k", 5, "сколько документов идёт в контекст")
-	k1 := fs.Float64("k1", 1.2, "параметр BM25 k1")
-	b := fs.Float64("b", 0.75, "параметр BM25 b")
+	k := fs.Int("k", config.SearchK, "сколько документов идёт в контекст")
+	k1 := fs.Float64("k1", config.SearchK1, "параметр BM25 k1")
+	b := fs.Float64("b", config.SearchB, "параметр BM25 b")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	switch *mode {
-	case "retrieval":
-		r, err := retrieval(*corpusDir, *queriesPath, *k, *k1, *b)
+	case "retrieval", "rag":
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		r, runErr := benchmark(ctx, *mode, *corpusDir, *queriesPath, *k, *k1, *b)
+		if r == nil {
+			return runErr
+		}
+		data, err := json.MarshalIndent(r, "", "  ")
 		if err != nil {
 			return err
 		}
-		data, _ := json.MarshalIndent(r, "", "  ")
-		return write(*out, append(data, '\n'))
+		if err := write(*out, append(data, '\n')); err != nil {
+			return err
+		}
+		return runErr
 	case "score":
 		report, err := score(*runPath, *gradesPath, *queriesPath)
 		if err != nil {
 			return err
 		}
 		return write(*out, []byte(report))
-	case "rag":
-		return fmt.Errorf("режим rag подключается при интеграции")
 	}
 	return fmt.Errorf("укажите -mode retrieval, rag или score")
 }
@@ -176,7 +191,10 @@ func validate(docs []search.Document, qs []Query) error {
 	return nil
 }
 
-func retrieval(corpusDir, queriesPath string, k int, k1, b float64) (*Run, error) {
+func benchmark(ctx context.Context, mode, corpusDir, queriesPath string, k int, k1, b float64) (*Run, error) {
+	if k <= 0 {
+		return nil, fmt.Errorf("-k должен быть больше нуля")
+	}
 	docs, err := search.LoadCorpus(corpusDir)
 	if err != nil {
 		return nil, err
@@ -189,17 +207,72 @@ func retrieval(corpusDir, queriesPath string, k int, k1, b float64) (*Run, error
 	if err != nil {
 		return nil, err
 	}
+
 	depth := len(docs)
 	corpusJSON, _ := json.Marshal(docs)
-	cfg, _ := json.Marshal(map[string]any{"k": k, "k1": k1, "b": b, "mrr_depth": depth})
+	cfg := map[string]any{"k": k, "k1": k1, "b": b, "mrr_depth": depth}
 	now := time.Now().UTC()
-	r := &Run{Mode: "retrieval", RunID: now.Format("20060102T150405Z") + "-retrieval", StartedAt: now.Format(time.RFC3339),
-		CorpusSHA256: sum(corpusJSON), QueriesSHA256: sum(qdata), ConfigSHA256: sum(cfg), K: k, K1: k1, B: b, MRRDepth: depth}
-	for _, q := range qs {
+	r := &Run{
+		Mode: mode, Status: "completed",
+		RunID: now.Format("20060102T150405.000000000Z") + "-" + mode, StartedAt: now.Format(time.RFC3339Nano),
+		CorpusSHA256: sum(corpusJSON), QueriesSHA256: sum(qdata), K: k, K1: k1, B: b, MRRDepth: depth,
+		Results: make([]Result, 0, len(qs)),
+	}
+
+	var service *rag.Service
+	if mode == "rag" {
+		modelConfig, err := config.LoadLLM()
+		if err != nil {
+			return nil, err
+		}
+		client, err := llm.New(modelConfig)
+		if err != nil {
+			return nil, fmt.Errorf("настройки LLM: %w", err)
+		}
+		service, err = rag.New(idx, k, depth, client)
+		if err != nil {
+			return nil, err
+		}
+		settings := client.Settings()
+		r.Model, r.LLM = modelConfig.Model, &settings
+		cfg["llm"] = settings
+	}
+	cfgJSON, _ := json.Marshal(cfg)
+	r.ConfigSHA256 = sum(cfgJSON)
+
+	failures := 0
+	for i, q := range qs {
+		if err := ctx.Err(); err != nil {
+			r.Status = "failed"
+			return r, fmt.Errorf("прогон прерван после %d/%d вопросов: %w", i, len(qs), err)
+		}
 		start := time.Now()
-		hits := idx.Search(q.Query, depth)
-		r.Results = append(r.Results, Result{ID: q.ID, Hits: hits, ElapsedMS: float64(time.Since(start).Microseconds()) / 1000})
-		fmt.Fprintf(os.Stderr, "%s: %d документов\n", q.ID, len(hits))
+		res := Result{ID: q.ID}
+		outcome := "поиск"
+		if service == nil {
+			res.Hits = idx.Search(q.Query, depth)
+		} else {
+			fmt.Fprintf(os.Stderr, "[%d/%d] %s: вопрос отправлен в RAG\n", i+1, len(qs), q.ID)
+			answer, err := service.Ask(ctx, q.Query)
+			res.Hits, res.Sources = answer.Ranked, answer.Sources
+			res.Answer, res.Refused = answer.Answer, answer.Refused
+			outcome = "ответ"
+			if err != nil {
+				res.Error = err.Error()
+				failures++
+				outcome = "ошибка: " + res.Error
+			} else if res.Refused {
+				outcome = "отказ"
+			}
+		}
+		res.ElapsedMS = float64(time.Since(start).Microseconds()) / 1000
+		r.Results = append(r.Results, res)
+		fmt.Fprintf(os.Stderr, "[%d/%d] %s: %s, документов в выдаче %d, %.0f мс\n",
+			i+1, len(qs), q.ID, outcome, len(res.Hits), res.ElapsedMS)
+	}
+	if failures > 0 {
+		r.Status = "failed"
+		return r, fmt.Errorf("прогон завершился ошибками: %d из %d вопросов", failures, len(qs))
 	}
 	return r, nil
 }
@@ -248,7 +321,13 @@ func score(runPath, gradesPath, queriesPath string) (string, error) {
 	if r.Mode != "retrieval" && r.Mode != "rag" {
 		return "", fmt.Errorf("неизвестный mode прогона %q", r.Mode)
 	}
-	// Корпус для проверки состава берём из хешей прогона: вопросы перечитываем и сверяем хеш.
+	if r.Status != "" && r.Status != "completed" {
+		return "", fmt.Errorf("прогон %q не завершён (status %q)", r.RunID, r.Status)
+	}
+	if r.K <= 0 || r.MRRDepth <= 0 {
+		return "", fmt.Errorf("прогон: требуются положительные k и глубина MRR")
+	}
+	// Вопросы перечитываем и сверяем с хешем прогона.
 	qdata, err := os.ReadFile(queriesPath)
 	if err != nil {
 		return "", err
@@ -269,6 +348,9 @@ func score(runPath, gradesPath, queriesPath string) (string, error) {
 			if gradesPath != "" || r.Mode == "rag" {
 				return "", fmt.Errorf("прогон неполный: вопрос %s завершился ошибкой %q", res.ID, res.Error)
 			}
+		}
+		if r.Mode == "rag" && r.Status == "completed" && strings.TrimSpace(res.Answer) == "" {
+			return "", fmt.Errorf("прогон неполный: нет ответа на вопрос %s", res.ID)
 		}
 		byID[res.ID] = res
 	}
