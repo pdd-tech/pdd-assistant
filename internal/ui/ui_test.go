@@ -26,7 +26,7 @@ func TestRenderingEscapesUntrustedText(t *testing.T) {
 		t.Fatal(err)
 	}
 	body := w.Body.String()
-	if strings.Contains(body, "<img") || !strings.Contains(body, "&lt;img") {
+	if strings.Contains(body, payload) || !strings.Contains(body, "&lt;img") {
 		t.Fatal("небезопасный текст в HTML")
 	}
 	if !strings.Contains(body, `name="csrf_token" value="token&#34;&lt;&amp;"`) {
@@ -42,7 +42,7 @@ func TestRenderingEscapesUntrustedText(t *testing.T) {
 			if err := r.Render(out, 422, page, data); err != nil {
 				t.Fatal(err)
 			}
-			if strings.Contains(out.Body.String(), "<img") {
+			if strings.Contains(out.Body.String(), payload) || !strings.Contains(out.Body.String(), "&lt;img") {
 				t.Fatal("XSS")
 			}
 			if out.Code != 422 {
@@ -181,7 +181,7 @@ func TestEmptyListsAndNavigation(t *testing.T) {
 
 func TestEmbeddedResources(t *testing.T) {
 	r := renderer(t)
-	for _, path := range []string{"/static/style.css", "/static/forms.js"} {
+	for _, path := range []string{"/static/style.css", "/static/forms.js", "/static/road-scene.svg"} {
 		w := httptest.NewRecorder()
 		r.StaticHandler().ServeHTTP(w, httptest.NewRequest("GET", path, nil))
 		if w.Code != 200 || w.Body.Len() == 0 {

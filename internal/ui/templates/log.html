@@ -1,12 +1,7 @@
 {{define "title"}}Журнал запросов{{end}}
+{{define "page-class"}}view-log{{end}}
 {{define "content"}}
-<h1>Журнал запросов</h1>
-<p class="muted">Вопросы учеников, новые сверху.</p>
+<div class="page-heading"><div><span class="eyebrow">ПАНЕЛЬ АВТОШКОЛЫ</span><h1>Журнал запросов<span class="text-accent">.</span></h1><p class="muted">Какие ситуации вызывают вопросы у ваших учеников.</p></div><span class="page-badge">{{template "book" .}} {{len .Logs}} в списке</span></div>
 {{template "messages" .}}
-<section class="card">
-  {{if .Logs}}<div class="table-wrap" role="region" aria-label="Журнал запросов" tabindex="0"><table><thead><tr><th scope="col">Дата и время</th><th scope="col">Ученик</th><th scope="col">Вопрос</th></tr></thead><tbody>
-    {{range .Logs}}<tr><td class="nowrap">{{.CreatedAt}}</td><td>{{.Login}}</td><td class="log-question">{{.Question}}</td></tr>{{end}}
-  </tbody></table></div>
-  {{else}}<p class="muted">Ученики пока не задавали вопросов.</p>{{end}}
-</section>
+<section class="card log-card"><div class="table-heading"><h2>Вопросы учеников</h2><span class="table-caption"><span class="status-dot"></span> Новые сверху</span></div>{{if .Logs}}<div class="table-wrap" role="region" aria-label="Журнал запросов" tabindex="0"><table><thead><tr><th scope="col">Дата и время</th><th scope="col">Ученик</th><th scope="col">Вопрос</th></tr></thead><tbody>{{range .Logs}}<tr><td class="nowrap">{{.CreatedAt}}</td><td><span class="table-user">{{template "person" .}}<strong>{{.Login}}</strong></span></td><td class="log-question">{{.Question}}</td></tr>{{end}}</tbody></table></div>{{else}}<div class="empty-state"><span class="empty-symbol">{{template "book" .}}</span><h3>Здесь появятся первые вопросы</h3><p>Ученики пока не задавали вопросов.</p></div>{{end}}</section>
 {{end}}

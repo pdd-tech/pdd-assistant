@@ -1,23 +1,8 @@
 {{define "title"}}Ученики{{end}}
+{{define "page-class"}}view-users{{end}}
 {{define "content"}}
-<h1>Ученики</h1>
+<div class="page-heading"><div><span class="eyebrow">ПАНЕЛЬ АВТОШКОЛЫ</span><h1>Ваши ученики<span class="text-accent">.</span></h1><p class="muted">Создавайте аккаунты и помогайте разбираться в правилах.</p></div><span class="page-badge">{{template "person" .}} {{len .Users}} в списке</span></div>
 {{template "messages" .}}
-<form class="card" action="/admin/users" method="post" data-pending="Создаём ученика…">
-  <h2>Новый ученик</h2>
-  {{template "csrf" .}}
-  <div class="row">
-    <div class="field"><label for="login">Логин ученика</label><input type="text" id="login" name="login" required autocomplete="off" value="{{.Login}}"></div>
-    <div class="field"><label for="password">Пароль ученика</label><input type="password" id="password" name="password" required autocomplete="new-password"></div>
-    <button class="btn" type="submit">Создать</button>
-  </div>
-  <span class="pending" role="status" aria-live="polite"></span>
-  <p class="hint">Логин и пароль передайте ученику сами: приложение их никуда не отправляет.</p>
-</form>
-<section class="card" aria-labelledby="users-title">
-  <h2 id="users-title">Список учеников</h2>
-  {{if .Users}}<div class="table-wrap" role="region" aria-label="Список учеников" tabindex="0"><table><thead><tr><th scope="col">Логин</th><th scope="col">Создан</th></tr></thead><tbody>
-    {{range .Users}}<tr><td>{{.Login}}</td><td class="nowrap">{{.CreatedAt}}</td></tr>{{end}}
-  </tbody></table></div>
-  {{else}}<p class="muted">Учеников пока нет. Создайте первый аккаунт с помощью формы выше.</p>{{end}}
-</section>
+<div class="admin-layout"><form class="card create-card" action="/admin/users" method="post" data-pending="Создаём ученика…"><div class="form-heading"><span class="icon-box">{{template "person" .}}</span><div><h2>Новый ученик</h2><p>Доступ к помощнику по ПДД</p></div></div>{{template "csrf" .}}<div class="field"><label for="login">Логин ученика</label><input type="text" id="login" name="login" required autocomplete="off" value="{{.Login}}" placeholder="Например, ivanov"></div><div class="field"><label for="password">Пароль ученика</label><input type="password" id="password" name="password" required autocomplete="new-password" placeholder="Задайте пароль"></div><button class="btn btn--wide" type="submit">Создать <span class="btn-icon">{{template "arrow" .}}</span></button><span class="pending" role="status" aria-live="polite"></span><p class="hint">Логин и пароль передайте ученику сами: приложение их никуда не отправляет.</p></form>
+<section class="card roster-card" aria-labelledby="users-title"><div class="table-heading"><h2 id="users-title">Список учеников</h2><span class="table-caption">Новые сверху</span></div>{{if .Users}}<div class="table-wrap" role="region" aria-label="Список учеников" tabindex="0"><table><thead><tr><th scope="col">Ученик</th><th scope="col">Дата создания</th></tr></thead><tbody>{{range .Users}}<tr><td><span class="table-user">{{template "person" .}}<strong>{{.Login}}</strong></span></td><td class="nowrap">{{.CreatedAt}}</td></tr>{{end}}</tbody></table></div>{{else}}<div class="empty-state"><span class="empty-symbol">{{template "person" .}}</span><h3>Начнём с первого ученика</h3><p>Учеников пока нет. Создайте первый аккаунт с помощью формы выше.</p></div>{{end}}</section></div>
 {{end}}
