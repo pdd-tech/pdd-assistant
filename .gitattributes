@@ -1,0 +1,3 @@
+# Score compares hashes of these files, including line endings.
+benchmark/queries.json text eol=lf
+benchmark/runs/*.json text eol=lf
