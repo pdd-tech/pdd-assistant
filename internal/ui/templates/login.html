@@ -1,0 +1,15 @@
+{{define "title"}}Вход{{end}}
+{{define "content"}}
+<div class="login">
+  <h1>Вход в помощник по ПДД</h1>
+  <p class="muted">Для учеников и сотрудников автошколы</p>
+  {{template "messages" .}}
+  <form class="card" action="/login" method="post" data-pending="Проверяем данные…">
+    {{template "csrf" .}}
+    <div class="field"><label for="login">Логин</label><input id="login" name="login" type="text" required autocomplete="username" value="{{.Login}}"></div>
+    <div class="field"><label for="password">Пароль</label><input id="password" name="password" type="password" required autocomplete="current-password"></div>
+    <button class="btn" type="submit">Войти</button><span class="pending" role="status" aria-live="polite"></span>
+    <p class="hint">Аккаунт выдаёт автошкола. Если у вас его нет, обратитесь к администратору.</p>
+  </form>
+</div>
+{{end}}

@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+/bin/
+/tmp/
+.DS_Store

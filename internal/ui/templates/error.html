@@ -1,0 +1,8 @@
+{{define "title"}}{{if .Title}}{{.Title}}{{else}}Ошибка{{end}}{{end}}
+{{define "content"}}
+<section class="card">
+  <h1>{{if .Title}}{{.Title}}{{else}}Не удалось открыть страницу{{end}}</h1>
+  {{template "messages" .}}
+  <a class="btn" href="{{if .CurrentUser}}{{if eq .CurrentUser.Role "admin"}}/admin/users{{else}}/{{end}}{{else}}/login{{end}}">Вернуться к началу</a>
+</section>
+{{end}}

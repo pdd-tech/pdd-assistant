@@ -1,0 +1,60 @@
+{{define "csrf"}}<input type="hidden" name="csrf_token" value="{{.CSRFToken}}">{{end}}
+{{define "question-form"}}
+<form class="card" action="/ask" method="post" data-pending="Ищем документы и готовим ответ…">
+  {{template "csrf" .}}
+  <div class="field">
+    <label for="question">Ваш вопрос</label>
+    <textarea id="question" name="question" required maxlength="2000" rows="3" aria-describedby="question-help" placeholder="Сформулируйте вопрос по выбранным документам">{{.Question}}</textarea>
+  </div>
+  <button class="btn" type="submit">Спросить</button>
+  <span class="pending" role="status" aria-live="polite"></span>
+  <p class="hint" id="question-help">До 2000 символов. Учебная база содержит выборку из ПДД и главы 12 КоАП. Ответ составляет языковая модель: перечитайте найденные пункты.</p>
+</form>
+{{end}}
+{{define "messages"}}
+{{if .Error}}<div class="msg msg--err" role="alert">{{.Error}}</div>{{end}}
+{{if .Success}}<div class="msg msg--ok" role="status">{{.Success}}</div>{{end}}
+{{end}}
+{{define "base"}}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{template "title" .}} — pdd-assistant</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/forms.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">К содержимому</a>
+  {{if .Preview}}
+  <aside class="preview" aria-label="Просмотр интерфейса">
+    <div class="preview__inner">
+      <strong>Просмотр интерфейса КТ2</strong>
+      <p>Демонстрационные данные. Авторизация, сохранение, поиск и LLM ещё не подключены. Формы возвращают сообщение об этом.</p>
+      <nav class="preview__links" aria-label="Экраны и состояния">
+        <a href="/login">Вход</a><a href="/login?state=error">Ошибка входа</a>
+        <a href="/">Вопрос</a><a href="/?state=error">Ошибка вопроса</a>
+        <a href="/ask">Ответ</a><a href="/ask?state=empty">Пустой поиск</a>
+        <a href="/ask?state=refused">Отказ модели</a><a href="/ask?state=error">Сбой LLM</a>
+        <a href="/admin/users">Ученики</a><a href="/admin/users?state=empty">Нет учеников</a>
+        <a href="/admin/users?state=error">Логин занят</a><a href="/admin/users?state=created">Ученик создан</a>
+        <a href="/admin/log">Журнал</a><a href="/admin/log?state=empty">Пустой журнал</a><a href="/forbidden">Нет доступа</a>
+      </nav>
+    </div>
+  </aside>
+  {{end}}
+  <header class="header">
+    <div class="header__inner">
+      <a class="logo" href="{{if .CurrentUser}}{{if eq .CurrentUser.Role "admin"}}/admin/users{{else}}/{{end}}{{else}}/login{{end}}"><span class="logo__sign" aria-hidden="true"></span>pdd-assistant</a>
+      {{if .CurrentUser}}
+        {{if eq .CurrentUser.Role "admin"}}<nav class="nav" aria-label="Администрирование"><a href="/admin/users">Ученики</a><a href="/admin/log">Журнал запросов</a></nav>{{end}}
+        <div class="user"><span>{{.CurrentUser.Login}}</span><form method="post" action="/logout">{{template "csrf" .}}<button class="btn btn--light" type="submit">Выйти</button></form></div>
+      {{end}}
+    </div>
+  </header>
+  <main id="main" class="page" tabindex="-1">{{template "content" .}}</main>
+  <footer class="footer">Учебный помощник по ПДД · НИРС, ИУ5-52Б</footer>
+</body>
+</html>
+{{end}}
