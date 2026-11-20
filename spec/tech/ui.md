@@ -64,6 +64,8 @@ err = renderer.Render(w, http.StatusOK, ui.PageAsk, ui.Data{
 
 ## Самостоятельная проверка
 
-`go run ./cmd/ui-preview -addr 127.0.0.1:8080` — только просмотр. GET-ссылки в баннере открывают login, login-error, ask, ask-error, answer, no-results, refused, llm-error, users, users-empty, users-error, users-created, log, log-empty, forbidden. Данные явно демонстрационные, не являются корпусом/юридическими эталонами. POST возвращает HTTP 501 с объяснением; регистрации, хранения и генерации нет. Нельзя показывать preview как работающий RAG.
+`go run ./cmd/ui-preview` — только просмотр. GET-ссылки в баннере открывают login, login-error, ask, ask-error, answer, no-results, refused, llm-error, users, users-empty, users-error, users-created, log, log-empty, forbidden. Данные явно демонстрационные, не являются корпусом/юридическими эталонами. POST возвращает HTTP 501 с объяснением; регистрации, хранения и генерации нет. Нельзя показывать preview как работающий RAG.
 
 `go test ./...` проверяет рендеринг, экранирование, формы, состояния ответа, embedded-ресурсы и ограничение preview. `go test -race ./...` проверяет совместное использование Renderer. Поиск не менялся, benchmark в этой ветке не существует.
+
+При запуске preview по умолчанию слушает `127.0.0.1:0`: свободный порт выделяет ОС при net.Listen. URL с фактическим портом выводится только после успешного открытия listener. Фиксированный адрес можно передать через -addr; если он занят, процесс завершается с ошибкой и не сообщает об успешном старте. Открывать нужно напечатанный адрес с 127.0.0.1, чтобы избежать путаницы с IPv6 localhost и другими локальными сервисами.
