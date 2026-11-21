@@ -3,6 +3,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -54,19 +55,50 @@ func LoadServer() (Server, error) {
 }
 
 func LoadLLM() (llm.Config, error) {
-	timeout, err := time.ParseDuration(envOr("LLM_TIMEOUT", "90s"))
+	timeout, err := time.ParseDuration(envOr("LLM_TIMEOUT", "120s"))
 	if err != nil || timeout <= 0 {
 		return llm.Config{}, fmt.Errorf("LLM_TIMEOUT должен быть положительной длительностью, например 90s")
 	}
-	disableReasoning, err := envBool("LLM_DISABLE_REASONING", true)
+	disableReasoning, err := envBool("LLM_DISABLE_REASONING", false)
 	if err != nil {
 		return llm.Config{}, err
 	}
 
+	jsonMode, err := envBool("LLM_JSON_MODE", true)
+	if err != nil {
+		return llm.Config{}, err
+	}
+	verify, err := envBool("LLM_VERIFY_ANSWER", false)
+	if err != nil {
+		return llm.Config{}, err
+	}
+	interval, err := time.ParseDuration(envOr("LLM_MIN_INTERVAL", "1s"))
+	if err != nil || interval < 0 {
+		return llm.Config{}, fmt.Errorf("LLM_MIN_INTERVAL должен быть неотрицательной длительностью")
+	}
+
+	baseURL := envOr("LLM_BASE_URL", "https://gigachat.devices.sberbank.ru/api/v1")
+	apiKey := strings.TrimSpace(os.Getenv("LLM_API_KEY"))
+	parsed, _ := url.Parse(baseURL)
+	if parsed != nil && strings.EqualFold(parsed.Hostname(), "generativelanguage.googleapis.com") {
+		if key := strings.TrimSpace(os.Getenv("GEMINI_API_KEY")); key != "" {
+			apiKey = key
+		}
+	}
+
+	credentials, scope, caFile := "", "", ""
+	if parsed != nil && (parsed.Hostname() == "api.giga.chat" || parsed.Hostname() == "gigachat.devices.sberbank.ru") {
+		apiKey = ""
+		credentials = strings.TrimSpace(os.Getenv("GIGACHAT_CREDENTIALS"))
+		scope = envOr("GIGACHAT_SCOPE", "GIGACHAT_API_PERS")
+		caFile = envOr("GIGACHAT_CA_FILE", "certs/russian_trusted_root_ca_pem.crt")
+	}
 	return llm.Config{
-		BaseURL:          envOr("LLM_BASE_URL", "http://127.0.0.1:11434/v1"),
-		APIKey:           strings.TrimSpace(os.Getenv("LLM_API_KEY")),
-		Model:            envOr("LLM_MODEL", "qwen3.5:9b"),
+		GigaCredentials: credentials, GigaScope: scope, CAFile: caFile,
+		JSONMode: jsonMode, VerifyAnswer: verify, MinInterval: interval, ReasoningEffort: strings.TrimSpace(os.Getenv("LLM_REASONING_EFFORT")),
+		BaseURL:          baseURL,
+		APIKey:           apiKey,
+		Model:            envOr("LLM_MODEL", "GigaChat-2-Max"),
 		Timeout:          timeout,
 		DisableReasoning: disableReasoning,
 	}, nil

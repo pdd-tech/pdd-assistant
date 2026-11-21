@@ -67,7 +67,7 @@ func TestCompleteWithProviderWithoutStructuredOutput(t *testing.T) {
 		if input.Question != "Где это записано?" || len(input.Documents) != 1 || input.Documents[0].ID != "pdd-11.4" || input.Documents[0].Ref != "ПДД, п. 11.4" || input.Documents[0].Text != "Обгон запрещён на мостах." {
 			t.Errorf("unexpected model input: %+v", input)
 		}
-		writeCompletion(w, "stop", `{"refused":false,"parts":[{"text":"Обгон на мостах запрещён.","source":"pdd-11.4"}],"missing":""}`)
+		writeCompletion(w, "stop", `{"refused":false,"parts":[{"text":"Обгон на мостах запрещён.","source":"pdd-11.4","quotes":["Обгон запрещён на мостах."]}],"missing":""}`)
 	}))
 	defer server.Close()
 
@@ -136,6 +136,9 @@ func TestCompleteRejectsInvalidResponses(t *testing.T) {
 		{name: "string refused", content: `{"answer":"provider secret","refused":"false"}`},
 		{name: "blank answer", content: `{"refused":false,"parts":[],"missing":""}`},
 		{name: "unknown source", content: `{"refused":false,"parts":[{"text":"Вывод","source":"unseen"}],"missing":""}`},
+		{name: "missing quote", content: `{"refused":false,"parts":[{"text":"Вывод","source":"source"}],"missing":""}`},
+		{name: "invented quote", content: `{"refused":false,"parts":[{"text":"Вывод","source":"source","quotes":["Проезд запрещён."]}],"missing":""}`},
+		{name: "empty quote", content: `{"refused":false,"parts":[{"text":"Вывод","source":"source","quotes":[" "]}],"missing":""}`},
 		{name: "blank part", content: `{"refused":false,"parts":[{"text":" ","source":"source"}],"missing":""}`},
 		{name: "refusal without explanation", content: `{"refused":true,"parts":[],"missing":""}`},
 		{name: "truncated", finish: "length", content: `{"answer":"provider secret","refused":false}`},
@@ -205,10 +208,10 @@ func TestCompleteRetriesInvalidReasoningOutputOnce(t *testing.T) {
 			writeCompletion(w, "length", "")
 			return
 		}
-		if payload.ReasoningEffort != "none" || payload.MaxTokens != 2048 {
+		if payload.ReasoningEffort != "" || payload.MaxTokens != 2048 {
 			t.Errorf("unexpected fallback settings: %+v", payload)
 		}
-		writeCompletion(w, "stop", `{"refused":false,"parts":[{"text":"Остановитесь.","source":"a"}],"missing":""}`)
+		writeCompletion(w, "stop", `{"refused":false,"parts":[{"text":"Остановитесь.","source":"a","quotes":["Остановитесь."]}],"missing":""}`)
 	}))
 	defer server.Close()
 
@@ -261,4 +264,113 @@ func writeCompletion(w http.ResponseWriter, finish, content string) {
 	choice := map[string]any{"index": 0, "finish_reason": finish, "message": msg}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{"choices": []any{choice}})
+}
+
+func TestVerificationReplacesDraftAndUsesOnlyActualContext(t *testing.T) {
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req chatRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatal(err)
+		}
+		if req.ResponseFormat == nil || req.ResponseFormat.Type != "json_object" {
+			t.Error("JSON mode missing")
+		}
+		if calls.Add(1) == 1 {
+			writeCompletion(w, "stop", `{"refused":false,"parts":[{"text":"Платёж 10 единиц.","source":"a","quotes":["При задержке до 10 минут сбор 10 единиц."]}],"missing":""}`)
+			return
+		}
+		var input modelInput
+		if err := json.Unmarshal([]byte(req.Messages[1].Content), &input); err != nil {
+			t.Fatal(err)
+		}
+		if input.Draft == nil || input.Question != "Сбор при задержке 12 минут?" || len(input.Documents) != 1 || req.Messages[0].Content != verificationPrompt {
+			t.Error("verifier lost question, draft or actual sources")
+		}
+		writeCompletion(w, "stop", `{"refused":false,"parts":[{"text":"За задержку 12 минут сбор 20 единиц.","source":"a","quotes":["При задержке свыше 10 минут сбор 20 единиц."]}],"missing":""}`)
+	}))
+	defer server.Close()
+	client, err := New(Config{BaseURL: server.URL, Model: "test", Timeout: time.Second, VerifyAnswer: true, JSONMode: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := client.Complete(context.Background(), "Сбор при задержке 12 минут?", []search.Document{{ID: "a", Ref: "Правило А", Text: "При задержке до 10 минут сбор 10 единиц. При задержке свыше 10 минут сбор 20 единиц."}})
+	if err != nil || calls.Load() != 2 || !strings.Contains(got.Answer, "20 единиц") || strings.Contains(got.Answer, "Платёж 10") {
+		t.Fatalf("got=%+v err=%v calls=%d", got, err, calls.Load())
+	}
+}
+
+func TestVerificationFailureNeverPublishesDraft(t *testing.T) {
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if calls.Add(1) == 1 {
+			writeCompletion(w, "stop", `{"refused":false,"parts":[{"text":"Проезд разрешён.","source":"a","quotes":["Проезд разрешён."]}],"missing":""}`)
+			return
+		}
+		http.Error(w, "provider private data", 429)
+	}))
+	defer server.Close()
+	client, _ := New(Config{BaseURL: server.URL, Model: "test", Timeout: time.Second, VerifyAnswer: true})
+	got, err := client.Complete(context.Background(), "Проезд?", []search.Document{{ID: "a", Ref: "А", Text: "Проезд разрешён."}})
+	if err == nil || got != (Response{}) || calls.Load() != 2 || strings.Contains(err.Error(), "private") {
+		t.Fatalf("got=%+v err=%v calls=%d", got, err, calls.Load())
+	}
+}
+
+func TestSharedCorrectionBudgetAndWhitespaceQuotes(t *testing.T) {
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := calls.Add(1)
+		if n == 1 || n == 3 {
+			writeCompletion(w, "stop", `{"refused":false,"parts":[{"text":"Вывод","source":"a","quotes":["Выдуманная цитата"]}],"missing":""}`)
+			return
+		}
+		writeCompletion(w, "stop", `{"refused":false,"parts":[{"text":"Проезд разрешён.","source":"a","quotes":["Проезд разрешён."]}],"missing":""}`)
+	}))
+	defer server.Close()
+	client, _ := New(Config{BaseURL: server.URL, Model: "test", Timeout: time.Second, VerifyAnswer: true})
+	got, err := client.Complete(context.Background(), "Проезд?", []search.Document{{ID: "a", Ref: "А", Text: "Проезд\n разрешён."}})
+	if err == nil || got != (Response{}) || calls.Load() != 3 {
+		t.Fatalf("got=%+v err=%v calls=%d", got, err, calls.Load())
+	}
+}
+
+func TestPacingHonorsCancellationWithoutNetworkCall(t *testing.T) {
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		writeCompletion(w, "stop", `{"refused":true,"parts":[],"missing":"условия"}`)
+	}))
+	defer server.Close()
+	client, _ := New(Config{BaseURL: server.URL, Model: "test", Timeout: time.Second, MinInterval: time.Minute})
+	if _, err := client.Complete(context.Background(), "Первый", nil); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	_, err := client.Complete(ctx, "Второй", nil)
+	if !errors.Is(err, context.DeadlineExceeded) || calls.Load() != 1 {
+		t.Fatalf("err=%v calls=%d", err, calls.Load())
+	}
+}
+
+func TestOpenRouterRequiresKeyAndFreePinnedModel(t *testing.T) {
+	for _, cfg := range []Config{
+		{BaseURL: "https://openrouter.ai/api/v1", Model: "google/model:free", Timeout: time.Second},
+		{BaseURL: "https://openrouter.ai/api/v1", Model: "openrouter/auto", APIKey: "test", Timeout: time.Second},
+		{BaseURL: "https://openrouter.ai/api/v1", Model: "google/model", APIKey: "test", Timeout: time.Second},
+		{BaseURL: "http://openrouter.ai/api/v1", Model: "google/model:free", APIKey: "test", Timeout: time.Second},
+	} {
+		if _, err := New(cfg); err == nil {
+			t.Error("unsafe OpenRouter configuration accepted")
+		}
+	}
+	c, err := New(Config{BaseURL: "https://openrouter.ai/api/v1", Model: "google/model:free", APIKey: "test-secret", Timeout: time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	metadata, _ := json.Marshal(c.Settings())
+	if strings.Contains(string(metadata), "test-secret") || !strings.Contains(string(metadata), "https://openrouter.ai/api/v1") {
+		t.Error("settings leak a key or omit API identity")
+	}
 }

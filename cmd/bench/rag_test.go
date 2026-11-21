@@ -63,7 +63,7 @@ func TestRAGRunAndScore(t *testing.T) {
 					http.Error(w, "private provider error", http.StatusTooManyRequests)
 					return
 				}
-				result := `{"refused":false,"parts":[{"text":"Пример ответа","source":"d0"}],"missing":""}`
+				result := `{"refused":false,"parts":[{"text":"Пример ответа","source":"d0","quotes":["обгон моста"]}],"missing":""}`
 				_ = json.NewEncoder(w).Encode(map[string]any{
 					"choices": []any{map[string]any{
 						"finish_reason": "stop",
@@ -74,6 +74,8 @@ func TestRAGRunAndScore(t *testing.T) {
 			defer model.Close()
 			t.Setenv("LLM_BASE_URL", model.URL)
 			t.Setenv("LLM_MODEL", "test-model")
+			t.Setenv("LLM_MIN_INTERVAL", "0s")
+			t.Setenv("LLM_VERIFY_ANSWER", "false")
 			runPath := filepath.Join(base, name+".json")
 			err := run([]string{"-mode", "rag", "-corpus", base, "-queries", queryPath, "-out", runPath})
 			if (err != nil) != unavailable {
