@@ -25,7 +25,7 @@ func TestServerSettings(t *testing.T) {
 	if cfg.Addr != "127.0.0.1:0" || cfg.DBPath != "pdd-assistant.sqlite" || cfg.CorpusDir != "corpus" || cfg.CookieSecure {
 		t.Fatalf("unexpected defaults: %+v", cfg)
 	}
-	if cfg.AdminPassword != "  raw password  " || cfg.LLM.Model != "nvidia/nemotron-3.5-lightning:free" || !cfg.LLM.DisableReasoning || cfg.LLM.Timeout != 120*time.Second || !cfg.LLM.VerifyAnswer || cfg.LLM.JSONMode || cfg.LLM.MinInterval != 4*time.Second {
+	if cfg.AdminPassword != "  raw password  " || cfg.LLM.Model != "nvidia/nemotron-3.5-super-vl:free" || !cfg.LLM.DisableReasoning || cfg.LLM.Timeout != 120*time.Second || cfg.LLM.VerifyAnswer || !cfg.LLM.JSONMode || cfg.LLM.MinInterval != 4*time.Second {
 		t.Fatal("password or LLM defaults changed")
 	}
 	t.Setenv("COOKIE_SECURE", "true")

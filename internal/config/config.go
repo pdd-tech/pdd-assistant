@@ -63,11 +63,11 @@ func LoadLLM() (llm.Config, error) {
 		return llm.Config{}, err
 	}
 
-	jsonMode, err := envBool("LLM_JSON_MODE", false)
+	jsonMode, err := envBool("LLM_JSON_MODE", true)
 	if err != nil {
 		return llm.Config{}, err
 	}
-	verify, err := envBool("LLM_VERIFY_ANSWER", true)
+	verify, err := envBool("LLM_VERIFY_ANSWER", false)
 	if err != nil {
 		return llm.Config{}, err
 	}
@@ -80,7 +80,7 @@ func LoadLLM() (llm.Config, error) {
 		JSONMode: jsonMode, VerifyAnswer: verify, MinInterval: interval,
 		BaseURL:          envOr("LLM_BASE_URL", "https://openrouter.ai/api/v1"),
 		APIKey:           strings.TrimSpace(os.Getenv("LLM_API_KEY")),
-		Model:            envOr("LLM_MODEL", "nvidia/nemotron-3.5-lightning:free"),
+		Model:            envOr("LLM_MODEL", "nvidia/nemotron-3.5-super-vl:free"),
 		Timeout:          timeout,
 		DisableReasoning: disableReasoning,
 	}, nil
