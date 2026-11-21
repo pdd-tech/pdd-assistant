@@ -31,11 +31,11 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	availability, err := client.CheckOpenRouter(ctx)
+	availability, err := client.Check(ctx)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Модель доступна в каталоге, цена входных и выходных токенов — 0:", cfg.Model)
+	fmt.Println("Ключ принят API, модель найдена:", cfg.Model)
 	if availability.DailyRemaining != nil {
 		fmt.Printf("Остаток дневной квоты перед проверкой генерации: %d", *availability.DailyRemaining)
 		if availability.DailyLimit != nil {
@@ -51,6 +51,7 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	fmt.Println("Тариф Freemium и остаток пакета проверяются в кабинете провайдера.")
 	fmt.Println("Реальный ответ API на синтетический пример:")
 	fmt.Println(answer.Answer)
 	if answer.Refused {

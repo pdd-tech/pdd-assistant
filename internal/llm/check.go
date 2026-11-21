@@ -9,11 +9,36 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 )
 
 type Availability struct {
 	DailyRemaining *int
 	DailyLimit     *int
+}
+
+// Check validates model access without making a generation request.
+func (c *Client) Check(ctx context.Context) (Availability, error) {
+	u, _ := url.Parse(c.settings.BaseURL)
+	if u.Hostname() == "openrouter.ai" {
+		return c.CheckOpenRouter(ctx)
+	}
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+	var catalog struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := c.readMetadata(ctx, "/models", true, &catalog); err != nil {
+		return Availability{}, err
+	}
+	for _, m := range catalog.Data {
+		if strings.TrimPrefix(m.ID, "models/") == c.settings.Model {
+			return Availability{}, nil
+		}
+	}
+	return Availability{}, errors.New("выбранная модель недоступна этому ключу; проверьте LLM_MODEL и доступ проекта")
 }
 
 // CheckOpenRouter checks metadata without spending a generation request.
@@ -76,7 +101,11 @@ func (c *Client) readMetadata(ctx context.Context, path string, authenticated bo
 		return errors.New("LLM: не удалось создать запрос метаданных")
 	}
 	if authenticated {
-		req.Header.Set("Authorization", "Bearer "+c.apiKey)
+		token, err := c.bearer(ctx)
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Authorization", "Bearer "+token)
 	}
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

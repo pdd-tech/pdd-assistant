@@ -44,10 +44,14 @@ const (
 var errInvalidCompletion = errors.New("LLM: некорректный ответ модели")
 
 type Config struct {
+	GigaCredentials  string
+	GigaScope        string
+	CAFile           string
 	BaseURL          string
 	APIKey           string
 	Model            string
 	Timeout          time.Duration
+	ReasoningEffort  string
 	DisableReasoning bool
 	JSONMode         bool
 	VerifyAnswer     bool
@@ -56,6 +60,9 @@ type Config struct {
 
 // Settings contains generation and timeout parameters safe to save in a benchmark.
 type Settings struct {
+	AuthMode        string  `json:"auth_mode,omitempty"`
+	Scope           string  `json:"scope,omitempty"`
+	CASHA256        string  `json:"ca_sha256,omitempty"`
 	BaseURL         string  `json:"base_url"`
 	JSONMode        bool    `json:"json_mode"`
 	VerifyAnswer    bool    `json:"verify_answer"`
@@ -70,6 +77,7 @@ type Settings struct {
 }
 
 type Client struct {
+	giga        *gigaAuth
 	httpClient  *http.Client
 	endpoint    string
 	apiKey      string
@@ -114,16 +122,36 @@ func New(cfg Config) (*Client, error) {
 			return nil, errors.New("задайте LLM_API_KEY для OpenRouter")
 		}
 	}
-	promptHash := sha256.Sum256([]byte(systemPrompt + verificationPrompt + fallbackInstruction))
+	if strings.EqualFold(baseURL.Hostname(), "generativelanguage.googleapis.com") {
+		if baseURL.Scheme != "https" || !strings.EqualFold(baseURL.Host, "generativelanguage.googleapis.com") || strings.TrimRight(baseURL.Path, "/") != "/v1beta/openai" {
+			return nil, errors.New("для Gemini используйте https://generativelanguage.googleapis.com/v1beta/openai")
+		}
+		baseURL.Host = "generativelanguage.googleapis.com"
+		if strings.TrimSpace(cfg.APIKey) == "" {
+			return nil, errors.New("задайте GEMINI_API_KEY для Google AI Studio")
+		}
+		if strings.HasPrefix(cfg.APIKey, "sk-or-") {
+			return nil, errors.New("ключ OpenRouter не подходит Google; задайте GEMINI_API_KEY")
+		}
+	}
+	switch cfg.ReasoningEffort {
+	case "", "none", "minimal", "low", "medium", "high":
+	default:
+		return nil, errors.New("LLM_REASONING_EFFORT: недопустимый уровень")
+	}
+	if baseURL.Hostname() == "generativelanguage.googleapis.com" && strings.HasPrefix(model, "gemini-3") && (cfg.DisableReasoning || cfg.ReasoningEffort == "none") {
+		return nil, errors.New("Gemini 3 не поддерживает отключение рассуждения; задайте LLM_DISABLE_REASONING=false и LLM_REASONING_EFFORT=low")
+	}
+	promptHash := sha256.Sum256([]byte(systemPrompt + verificationPrompt + fallbackInstruction + schemaVersion))
 	settings := Settings{
 		BaseURL: strings.TrimRight(baseURL.String(), "/"), JSONMode: cfg.JSONMode, VerifyAnswer: cfg.VerifyAnswer, MinInterval: cfg.MinInterval.String(),
-		Model: model, Timeout: cfg.Timeout.String(), Temperature: temperature,
+		Model: model, Timeout: cfg.Timeout.String(), Temperature: temperature, ReasoningEffort: cfg.ReasoningEffort,
 		MaxTokens: maxTokens, FallbackTokens: fallbackTokens, PromptSHA256: hex.EncodeToString(promptHash[:]),
 	}
 	if cfg.DisableReasoning {
 		settings.ReasoningEffort = "none"
 	}
-	return &Client{
+	client := &Client{
 		httpClient: &http.Client{
 			// Keep credentials and question data at the configured endpoint.
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
@@ -132,7 +160,13 @@ func New(cfg Config) (*Client, error) {
 		apiKey:   cfg.APIKey,
 		timeout:  cfg.Timeout,
 		settings: settings, interval: cfg.MinInterval,
-	}, nil
+	}
+	if baseURL.Hostname() == "api.giga.chat" || baseURL.Hostname() == "gigachat.devices.sberbank.ru" {
+		if err := client.configureGiga(cfg); err != nil {
+			return nil, err
+		}
+	}
+	return client, nil
 }
 
 func (c *Client) Settings() Settings {
@@ -159,7 +193,10 @@ type reasoningConfig struct {
 }
 
 type responseFormat struct {
-	Type string `json:"type"`
+	Type       string         `json:"type"`
+	JSONSchema *jsonSchema    `json:"json_schema,omitempty"`
+	Schema     map[string]any `json:"schema,omitempty"`
+	Strict     bool           `json:"strict,omitempty"`
 }
 
 type promptDocument struct {
@@ -201,7 +238,16 @@ func (c *Client) Complete(ctx context.Context, question string, docs []search.Do
 		request.Reasoning = &reasoningConfig{Enabled: false}
 	}
 	if c.settings.JSONMode {
-		request.ResponseFormat = &responseFormat{Type: "json_object"}
+		request.ResponseFormat = answerFormat(docs, baseURL.Hostname() == "generativelanguage.googleapis.com" || c.giga != nil)
+		if c.giga != nil {
+			request.ResponseFormat.Schema = request.ResponseFormat.JSONSchema.Schema
+			request.ResponseFormat.JSONSchema = nil
+			request.ResponseFormat.Strict = true
+		}
+	}
+	if c.giga != nil {
+		request.ReasoningEffort = ""
+		request.Reasoning = nil
 	}
 	retryAvailable := true
 	content, err := c.completeStage(ctx, request, docs, &retryAvailable)
@@ -228,7 +274,7 @@ func (c *Client) completeStage(ctx context.Context, request chatRequest, docs []
 	}
 	*retryAvailable = false
 	request.MaxTokens = c.settings.FallbackTokens
-	request.Messages[0].Content += fallbackInstruction
+	request.Messages[0].Content += fallbackInstruction + "\nПроверка клиента: " + err.Error()
 	return c.requestCompletion(ctx, request, docs)
 }
 
@@ -260,8 +306,12 @@ func (c *Client) requestCompletion(ctx context.Context, request chatRequest, doc
 		return answerContent{}, errors.New("LLM: не удалось создать HTTP-запрос")
 	}
 	req.Header.Set("Content-Type", "application/json")
-	if c.apiKey != "" {
-		req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	accessToken, err := c.bearer(ctx)
+	if err != nil {
+		return answerContent{}, err
+	}
+	if accessToken != "" {
+		req.Header.Set("Authorization", "Bearer "+accessToken)
 	}
 
 	resp, err := c.httpClient.Do(req)
@@ -285,6 +335,17 @@ func (c *Client) requestCompletion(ctx context.Context, request chatRequest, doc
 	}
 	if len(data) > maxBodyBytes {
 		return answerContent{}, errors.New("LLM: ответ превышает ограничение размера")
+	}
+	if strings.Contains(c.settings.BaseURL, "generativelanguage.googleapis.com") {
+		var identity struct {
+			Model string `json:"model"`
+		}
+		if json.Unmarshal(data, &identity) == nil && identity.Model != "" {
+			actual := strings.TrimPrefix(identity.Model, "models/")
+			if actual != c.settings.Model {
+				return answerContent{}, errors.New("LLM: Google вернул другую модель; автоматическая подмена отклонена")
+			}
+		}
 	}
 	return decodeCompletion(data, docs)
 }
@@ -334,8 +395,14 @@ func decodeCompletion(data []byte, docs []search.Document) (answerContent, error
 	}
 	for i, part := range content.Parts {
 		doc, found := sources[part.Source]
-		if !found || strings.TrimSpace(part.Text) == "" || len(part.Quotes) == 0 {
-			return answerContent{}, fmt.Errorf("%w: нет текста, источника или цитат в части %d", errInvalidCompletion, i+1)
+		if !found {
+			return answerContent{}, fmt.Errorf("%w: source части %d должен быть id из documents", errInvalidCompletion, i+1)
+		}
+		if strings.TrimSpace(part.Text) == "" {
+			return answerContent{}, fmt.Errorf("%w: text части %d пуст", errInvalidCompletion, i+1)
+		}
+		if len(part.Quotes) == 0 {
+			return answerContent{}, fmt.Errorf("%w: quotes части %d должен содержать дословную цитату", errInvalidCompletion, i+1)
 		}
 		for _, quote := range part.Quotes {
 			q := normalizeSpace(quote)
