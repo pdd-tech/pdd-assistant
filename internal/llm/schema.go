@@ -2,7 +2,7 @@ package llm
 
 import "github.com/pdd-tech/pdd-assistant/internal/search"
 
-const schemaVersion = "grounded-answer-schema-v1"
+const schemaVersion = "grounded-answer-schema-v2-profiles"
 
 type jsonSchema struct {
 	Name   string         `json:"name"`
@@ -10,7 +10,7 @@ type jsonSchema struct {
 	Schema map[string]any `json:"schema"`
 }
 
-func answerFormat(docs []search.Document, structured bool) *responseFormat {
+func answerFormat(docs []search.Document, structured bool, requireQuotes bool) *responseFormat {
 	if !structured {
 		return &responseFormat{Type: "json_object"}
 	}
@@ -31,6 +31,10 @@ func answerFormat(docs []search.Document, structured bool) *responseFormat {
 		},
 		"required":             []string{"text", "source", "quotes"},
 		"additionalProperties": false,
+	}
+	if !requireQuotes {
+		delete(part["properties"].(map[string]any), "quotes")
+		part["required"] = []string{"text", "source"}
 	}
 	return &responseFormat{Type: "json_schema", JSONSchema: &jsonSchema{
 		Name: "grounded_answer", Strict: true,

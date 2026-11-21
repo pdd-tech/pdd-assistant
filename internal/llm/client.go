@@ -44,6 +44,7 @@ const (
 var errInvalidCompletion = errors.New("LLM: некорректный ответ модели")
 
 type Config struct {
+	Profile          string
 	GigaCredentials  string
 	GigaScope        string
 	CAFile           string
@@ -60,6 +61,8 @@ type Config struct {
 
 // Settings contains generation and timeout parameters safe to save in a benchmark.
 type Settings struct {
+	Profile         string  `json:"profile"`
+	RequireQuotes   bool    `json:"require_quotes"`
 	AuthMode        string  `json:"auth_mode,omitempty"`
 	Scope           string  `json:"scope,omitempty"`
 	CASHA256        string  `json:"ca_sha256,omitempty"`
@@ -77,15 +80,18 @@ type Settings struct {
 }
 
 type Client struct {
-	giga        *gigaAuth
-	httpClient  *http.Client
-	endpoint    string
-	apiKey      string
-	timeout     time.Duration
-	settings    Settings
-	interval    time.Duration
-	scheduleMu  sync.Mutex
-	nextRequest time.Time
+	prompt       string
+	auditPrompt  string
+	repairPrompt string
+	giga         *gigaAuth
+	httpClient   *http.Client
+	endpoint     string
+	apiKey       string
+	timeout      time.Duration
+	settings     Settings
+	interval     time.Duration
+	scheduleMu   sync.Mutex
+	nextRequest  time.Time
 }
 
 type Response struct {
@@ -142,8 +148,19 @@ func New(cfg Config) (*Client, error) {
 	if baseURL.Hostname() == "generativelanguage.googleapis.com" && strings.HasPrefix(model, "gemini-3") && (cfg.DisableReasoning || cfg.ReasoningEffort == "none") {
 		return nil, errors.New("Gemini 3 не поддерживает отключение рассуждения; задайте LLM_DISABLE_REASONING=false и LLM_REASONING_EFFORT=low")
 	}
-	promptHash := sha256.Sum256([]byte(systemPrompt + verificationPrompt + fallbackInstruction + schemaVersion))
+	profile := cfg.Profile
+	if profile == "" {
+		profile = "pdd"
+	}
+	prompt, audit, repair := systemPrompt, verificationPrompt, fallbackInstruction
+	if profile == "patents" {
+		prompt, audit, repair = patentPrompt, patentVerificationPrompt, patentRepairPrompt
+	} else if profile != "pdd" {
+		return nil, errors.New("неизвестный профиль LLM")
+	}
+	promptHash := sha256.Sum256([]byte(prompt + audit + repair + schemaVersion))
 	settings := Settings{
+		Profile: profile, RequireQuotes: profile == "pdd",
 		BaseURL: strings.TrimRight(baseURL.String(), "/"), JSONMode: cfg.JSONMode, VerifyAnswer: cfg.VerifyAnswer, MinInterval: cfg.MinInterval.String(),
 		Model: model, Timeout: cfg.Timeout.String(), Temperature: temperature, ReasoningEffort: cfg.ReasoningEffort,
 		MaxTokens: maxTokens, FallbackTokens: fallbackTokens, PromptSHA256: hex.EncodeToString(promptHash[:]),
@@ -152,6 +169,7 @@ func New(cfg Config) (*Client, error) {
 		settings.ReasoningEffort = "none"
 	}
 	client := &Client{
+		prompt: prompt, auditPrompt: audit, repairPrompt: repair,
 		httpClient: &http.Client{
 			// Keep credentials and question data at the configured endpoint.
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
@@ -221,7 +239,7 @@ func (c *Client) Complete(ctx context.Context, question string, docs []search.Do
 	request := chatRequest{
 		Model: c.settings.Model,
 		Messages: []message{
-			{Role: "system", Content: systemPrompt},
+			{Role: "system", Content: c.prompt},
 			{Role: "user", Content: string(prompt)},
 		},
 		Temperature:     c.settings.Temperature,
@@ -238,7 +256,7 @@ func (c *Client) Complete(ctx context.Context, question string, docs []search.Do
 		request.Reasoning = &reasoningConfig{Enabled: false}
 	}
 	if c.settings.JSONMode {
-		request.ResponseFormat = answerFormat(docs, baseURL.Hostname() == "generativelanguage.googleapis.com" || c.giga != nil)
+		request.ResponseFormat = answerFormat(docs, baseURL.Hostname() == "generativelanguage.googleapis.com" || c.giga != nil, c.settings.RequireQuotes)
 		if c.giga != nil {
 			request.ResponseFormat.Schema = request.ResponseFormat.JSONSchema.Schema
 			request.ResponseFormat.JSONSchema = nil
@@ -257,7 +275,7 @@ func (c *Client) Complete(ctx context.Context, question string, docs []search.Do
 	if c.settings.VerifyAnswer {
 		input.Draft = &content
 		auditInput, _ := json.Marshal(input)
-		request.Messages = []message{{Role: "system", Content: verificationPrompt}, {Role: "user", Content: string(auditInput)}}
+		request.Messages = []message{{Role: "system", Content: c.auditPrompt}, {Role: "user", Content: string(auditInput)}}
 		content, err = c.completeStage(ctx, request, docs, &retryAvailable)
 		if err != nil {
 			return Response{}, err
@@ -274,7 +292,7 @@ func (c *Client) completeStage(ctx context.Context, request chatRequest, docs []
 	}
 	*retryAvailable = false
 	request.MaxTokens = c.settings.FallbackTokens
-	request.Messages[0].Content += fallbackInstruction + "\nПроверка клиента: " + err.Error()
+	request.Messages[0].Content += c.repairPrompt + "\nПроверка клиента: " + err.Error()
 	return c.requestCompletion(ctx, request, docs)
 }
 
@@ -347,7 +365,7 @@ func (c *Client) requestCompletion(ctx context.Context, request chatRequest, doc
 			}
 		}
 	}
-	return decodeCompletion(data, docs)
+	return decodeCompletion(data, docs, c.settings.RequireQuotes)
 }
 
 type answerPart struct {
@@ -362,7 +380,7 @@ type answerContent struct {
 	Missing string       `json:"missing"`
 }
 
-func decodeCompletion(data []byte, docs []search.Document) (answerContent, error) {
+func decodeCompletion(data []byte, docs []search.Document, requireQuotes bool) (answerContent, error) {
 	var envelope struct {
 		Choices []struct {
 			Message      message `json:"message"`
@@ -401,7 +419,7 @@ func decodeCompletion(data []byte, docs []search.Document) (answerContent, error
 		if strings.TrimSpace(part.Text) == "" {
 			return answerContent{}, fmt.Errorf("%w: text части %d пуст", errInvalidCompletion, i+1)
 		}
-		if len(part.Quotes) == 0 {
+		if requireQuotes && len(part.Quotes) == 0 {
 			return answerContent{}, fmt.Errorf("%w: quotes части %d должен содержать дословную цитату", errInvalidCompletion, i+1)
 		}
 		for _, quote := range part.Quotes {
