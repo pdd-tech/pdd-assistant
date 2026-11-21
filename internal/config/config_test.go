@@ -9,7 +9,7 @@ import (
 func TestServerSettings(t *testing.T) {
 	for _, name := range []string{
 		"ADDR", "DB_PATH", "CORPUS_DIR", "ADMIN_LOGIN", "ADMIN_PASSWORD", "COOKIE_SECURE",
-		"LLM_BASE_URL", "LLM_MODEL", "LLM_API_KEY", "LLM_TIMEOUT", "LLM_DISABLE_REASONING",
+		"LLM_BASE_URL", "LLM_MODEL", "LLM_API_KEY", "LLM_TIMEOUT", "LLM_DISABLE_REASONING", "LLM_VERIFY_ANSWER", "LLM_JSON_MODE", "LLM_MIN_INTERVAL",
 	} {
 		t.Setenv(name, "")
 	}
@@ -25,7 +25,7 @@ func TestServerSettings(t *testing.T) {
 	if cfg.Addr != "127.0.0.1:0" || cfg.DBPath != "pdd-assistant.sqlite" || cfg.CorpusDir != "corpus" || cfg.CookieSecure {
 		t.Fatalf("unexpected defaults: %+v", cfg)
 	}
-	if cfg.AdminPassword != "  raw password  " || cfg.LLM.Model != "qwen3.5:9b" || !cfg.LLM.DisableReasoning || cfg.LLM.Timeout != 90*time.Second {
+	if cfg.AdminPassword != "  raw password  " || cfg.LLM.Model != "nvidia/nemotron-3.5-lightning:free" || !cfg.LLM.DisableReasoning || cfg.LLM.Timeout != 120*time.Second || !cfg.LLM.VerifyAnswer || cfg.LLM.JSONMode || cfg.LLM.MinInterval != 4*time.Second {
 		t.Fatal("password or LLM defaults changed")
 	}
 	t.Setenv("COOKIE_SECURE", "true")
@@ -41,5 +41,16 @@ func TestServerSettings(t *testing.T) {
 	t.Setenv("LLM_TIMEOUT", "-1s")
 	if _, err := LoadLLM(); err == nil || !strings.Contains(err.Error(), "LLM_TIMEOUT") {
 		t.Fatalf("negative timeout accepted: %v", err)
+	}
+}
+
+func TestRejectInvalidAPIControls(t *testing.T) {
+	for _, setting := range []struct{ key, value string }{{"LLM_MIN_INTERVAL", "-1s"}, {"LLM_MIN_INTERVAL", "invalid"}, {"LLM_VERIFY_ANSWER", "invalid"}, {"LLM_JSON_MODE", "invalid"}} {
+		t.Run(setting.key+setting.value, func(t *testing.T) {
+			t.Setenv(setting.key, setting.value)
+			if _, err := LoadLLM(); err == nil {
+				t.Error("invalid API setting accepted")
+			}
+		})
 	}
 }

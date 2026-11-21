@@ -54,7 +54,7 @@ func LoadServer() (Server, error) {
 }
 
 func LoadLLM() (llm.Config, error) {
-	timeout, err := time.ParseDuration(envOr("LLM_TIMEOUT", "90s"))
+	timeout, err := time.ParseDuration(envOr("LLM_TIMEOUT", "120s"))
 	if err != nil || timeout <= 0 {
 		return llm.Config{}, fmt.Errorf("LLM_TIMEOUT должен быть положительной длительностью, например 90s")
 	}
@@ -63,10 +63,24 @@ func LoadLLM() (llm.Config, error) {
 		return llm.Config{}, err
 	}
 
+	jsonMode, err := envBool("LLM_JSON_MODE", false)
+	if err != nil {
+		return llm.Config{}, err
+	}
+	verify, err := envBool("LLM_VERIFY_ANSWER", true)
+	if err != nil {
+		return llm.Config{}, err
+	}
+	interval, err := time.ParseDuration(envOr("LLM_MIN_INTERVAL", "4s"))
+	if err != nil || interval < 0 {
+		return llm.Config{}, fmt.Errorf("LLM_MIN_INTERVAL должен быть неотрицательной длительностью")
+	}
+
 	return llm.Config{
-		BaseURL:          envOr("LLM_BASE_URL", "http://127.0.0.1:11434/v1"),
+		JSONMode: jsonMode, VerifyAnswer: verify, MinInterval: interval,
+		BaseURL:          envOr("LLM_BASE_URL", "https://openrouter.ai/api/v1"),
 		APIKey:           strings.TrimSpace(os.Getenv("LLM_API_KEY")),
-		Model:            envOr("LLM_MODEL", "qwen3.5:9b"),
+		Model:            envOr("LLM_MODEL", "nvidia/nemotron-3.5-lightning:free"),
 		Timeout:          timeout,
 		DisableReasoning: disableReasoning,
 	}, nil
